@@ -48,6 +48,7 @@ from negpy.desktop.view.styles.theme import THEME
 from negpy.desktop.view.widgets.step_combo import StepCombo
 from negpy.features.exposure.papers import resolve_paper
 from negpy.kernel.system.text import count_of
+from negpy.kernel.system.version import is_source_install
 
 # The index is what is saved, so a new color goes at the end; Preferences shows them darkest first.
 CANVAS_COLORS = [
@@ -731,7 +732,8 @@ class ActionToolbar(QWidget):
         self._label(shortcuts_action, tr("Keyboard Shortcuts…"), "show_shortcuts")
         shortcuts_action.setToolTip(tr("Show the full keyboard shortcuts reference"))
         self._help_menu.addSeparator()
-        self._update_action = self._help_menu.addAction(_icon("fa5s.sync-alt"), tr("Check for Updates…"), self._check_for_updates)
+        update_label = tr("Check Upstream Releases…") if is_source_install() else tr("Check for Updates…")
+        self._update_action = self._help_menu.addAction(_icon("fa5s.sync-alt"), update_label, self._check_for_updates)
         about_action = self._help_menu.addAction(_icon("fa5s.info-circle"), tr("About NegPy…"), self._show_about)
         about_action.setToolTip(tr("Version and project page"))
         self.btn_overflow.setMenu(overflow_menu)
@@ -1508,9 +1510,14 @@ class ActionToolbar(QWidget):
             self._update_dot = EditedDot(self.btn_overflow, color=THEME.status_success)
         self._update_dot.set_active(True)
         # The dot on ⋯ leads to Help, where the update waits.
-        self._help_menu.menuAction().setIcon(qta.icon("fa5s.download", color=THEME.status_success))
-        self._update_action.setIcon(qta.icon("fa5s.download", color=THEME.status_success))
-        self._update_action.setText(tr("Update to v{version}…", version=version))
+        icon = "fa5s.info-circle" if is_source_install() else "fa5s.download"
+        self._help_menu.menuAction().setIcon(qta.icon(icon, color=THEME.status_success))
+        self._update_action.setIcon(qta.icon(icon, color=THEME.status_success))
+        self._update_action.setText(
+            tr("Upstream v{version} Release Notes…", version=version)
+            if is_source_install()
+            else tr("Update to v{version}…", version=version)
+        )
 
     def _check_for_updates(self) -> None:
         from negpy.desktop.view.main_window import MainWindow

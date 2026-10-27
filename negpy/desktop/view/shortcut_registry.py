@@ -345,7 +345,8 @@ REGISTRY: dict[str, ShortcutEntry] = {
     "show_shortcuts": ShortcutEntry("?", tr("Show shortcuts"), tr("Help")),
     "show_tour": ShortcutEntry("", tr("Take the tour: a guided walk through NegPy, one chapter at a time"), tr("Help")),
     "show_analysis_help": ShortcutEntry("", tr("Analysis panel guide"), tr("Help")),
-    "check_for_updates": ShortcutEntry("", tr("Check for updates"), tr("Help")),
+    "check_for_updates": ShortcutEntry("", tr("Check for upstream releases"), tr("Help")),
+    "toggle_automatic_update_checks": ShortcutEntry("", tr("Check upstream releases at startup"), tr("Help")),
     "show_about": ShortcutEntry("", tr("About NegPy: version and project page"), tr("Help")),
 }
 

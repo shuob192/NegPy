@@ -546,6 +546,9 @@ class ShortcutManager:
             ),
             "toggle_invert_zoom_scroll": lambda: controller.session.set_invert_zoom_scroll(not controller.session.state.invert_zoom_scroll),
             "toggle_shortcut_hints": lambda: controller.session.set_shortcut_hints(not controller.session.state.shortcut_hints),
+            "toggle_automatic_update_checks": lambda: controller.session.set_automatic_update_checks(
+                not controller.session.state.automatic_update_checks
+            ),
             "toggle_film_strip": self.window.toggle_film_strip,
             "toggle_toolbar_mode": self.window.toolbar.toggle_mode,
             "toggle_right_panel": self.window.toggle_controls_dock,

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QMessageBox, QWidget
 from negpy.desktop.view.widgets.update_dialog import UpdateDialog, start_update_check
 from negpy.kernel.system.i18n import tr
 from negpy.kernel.system.updater import UpdateInfo
-from negpy.kernel.system.version import get_app_version
+from negpy.kernel.system.version import get_app_version, is_source_install
 
 
 class UpdateNotice(QObject):
@@ -20,9 +20,12 @@ class UpdateNotice(QObject):
         self._repo = repo
         self.update_info: Optional[UpdateInfo] = None
         self._checking = False
-        start_update_check(self._on_update_checked)
+        if self._repo.get_global_setting("automatic_update_checks", default=False) is True:
+            self._checking = True
+            start_update_check(self._on_update_checked)
 
     def _on_update_checked(self, info: Optional[UpdateInfo]) -> None:
+        self._checking = False
         if info is None:
             return
         self.update_info = info
@@ -47,7 +50,14 @@ class UpdateNotice(QObject):
     def _on_manual_check(self, info: Optional[UpdateInfo]) -> None:
         self._checking = False
         if info is None:
-            QMessageBox.information(self._window, tr("Check for Updates"), tr("NegPy {value} is up to date.", value=get_app_version()))
+            if is_source_install():
+                QMessageBox.information(
+                    self._window,
+                    tr("Upstream Releases"),
+                    tr("No newer upstream release was found. This check does not update your source fork."),
+                )
+            else:
+                QMessageBox.information(self._window, tr("Check for Updates"), tr("NegPy {value} is up to date.", value=get_app_version()))
             return
         self._on_update_checked(info)
         self.show_update_dialog()

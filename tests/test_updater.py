@@ -149,7 +149,8 @@ def _info(size: int = 6) -> UpdateInfo:
     )
 
 
-def test_the_asset_lands_whole_and_progress_is_reported(tmp_path):
+def test_the_asset_lands_whole_and_progress_is_reported(tmp_path, monkeypatch):
+    monkeypatch.setattr(updater.sys, "frozen", True, raising=False)
     seen: list[tuple[int, int]] = []
 
     with patch("urllib.request.urlopen", _urlopen_serving(b"payload")):
@@ -160,7 +161,8 @@ def test_the_asset_lands_whole_and_progress_is_reported(tmp_path):
     assert seen[-1] == (7, 7)
 
 
-def test_a_cancelled_download_leaves_nothing_behind(tmp_path):
+def test_a_cancelled_download_leaves_nothing_behind(tmp_path, monkeypatch):
+    monkeypatch.setattr(updater.sys, "frozen", True, raising=False)
     with patch("urllib.request.urlopen", _urlopen_serving(b"payload")):
         with pytest.raises(UpdateError):
             download_asset(_info(), tmp_path, is_cancelled=lambda: True)
@@ -168,7 +170,8 @@ def test_a_cancelled_download_leaves_nothing_behind(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_a_failed_download_leaves_nothing_behind(tmp_path):
+def test_a_failed_download_leaves_nothing_behind(tmp_path, monkeypatch):
+    monkeypatch.setattr(updater.sys, "frozen", True, raising=False)
     with patch("urllib.request.urlopen", side_effect=OSError("connection reset")):
         with pytest.raises(UpdateError):
             download_asset(_info(), tmp_path)

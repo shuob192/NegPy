@@ -11,6 +11,11 @@ ISSUES_PAGE = f"https://github.com/{GITHUB_REPO}/issues/new/choose"
 USER_AGENT = "NegPy-Updater"
 
 
+def is_source_install() -> bool:
+    """True when NegPy runs from Python instead of a frozen application."""
+    return not getattr(sys, "frozen", False)
+
+
 def get_app_version() -> str:
     """
     Reads VERSION or package.json.

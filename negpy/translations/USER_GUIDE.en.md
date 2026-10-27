@@ -829,6 +829,7 @@ Shows the whole strip, to place and pick the frames before the scan. **Apply Fra
 *   **Canvas background**: from black to white. Mid gray is best for judging a print.
 *   **Sticky Zoom**: keeps the zoom when you change frames. **Reverse Scroll Zoom**: scroll up zooms out.
 *   **Shortcut Hints** (on at first): after you use a control with the mouse, a toast on the canvas shows its keyboard shortcut, once per session.
+*   **Check Upstream Releases at Startup**: checks GitHub when NegPy starts. Off by default; changes apply at the next startup.
 *   **Customize Shortcuts…**, **Edit Toolbar…** and **Reset Panel Layout**.
 
 ### Accessibility
@@ -877,11 +878,13 @@ The memory rows of Preferences can be set here too (`max_texture_size`, `preview
 
 ## 15. Updating NegPy
 
-NegPy checks for a new version at startup. A new release puts a green dot on **⋯** and adds **Update to vX.Y.Z…** to its **Help** menu. **Check for Updates…** checks by hand.
+Automatic release checks are off by default. Enable **Check Upstream Releases at Startup** in Preferences to check GitHub at each startup.
 
-**Install Update** downloads the new version, closes NegPy, installs it and opens it again. On Windows, approve the administrator prompt *before* NegPy closes. If the update fails, your install stays as it was. Your edits, presets and settings are not touched.
+For a source fork, **⋯** → **Help** → **Check Upstream Releases…** checks by hand. A newer release adds **Upstream vX.Y.Z Release Notes…** and a green dot. This reports an upstream release, not an update to your fork.
 
-When NegPy cannot update itself, for example when it runs from source, the button reads **Open Releases Page**.
+A source installation never downloads or installs release binaries. Use Git to fetch and merge upstream changes yourself; see [Updating a personal source fork](../CONTRIBUTING.md#updating-a-personal-source-fork). NegPy does not replace source files or discard local changes.
+
+Packaged installations keep **Check for Updates…** and **Install Update**. Installation closes NegPy, installs the release, and opens it again. On Windows, approve the administrator prompt before NegPy closes. Edits, presets, and settings stay unchanged.
 
 ---
 

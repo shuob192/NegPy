@@ -23,6 +23,7 @@ def _info(**overrides) -> UpdateInfo:
 
 @pytest.fixture
 def installable(monkeypatch):
+    monkeypatch.setattr("sys.frozen", True, raising=False)
     monkeypatch.setattr("negpy.kernel.system.updater.install_kind", lambda: "appimage")
 
 
@@ -35,6 +36,7 @@ def test_the_notes_and_the_size_are_shown(qapp, installable):
 
 
 def test_a_release_without_a_build_for_this_install_only_offers_the_page(qapp, monkeypatch):
+    monkeypatch.setattr("sys.frozen", True, raising=False)
     monkeypatch.setattr("negpy.kernel.system.updater.install_kind", lambda: "")
     opened = []
     monkeypatch.setattr(dialog_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))

@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from negpy.kernel.system.i18n import tr
 from negpy.kernel.system.logging import get_logger
 from negpy.kernel.system.version import (
     RELEASES_PAGE,
@@ -27,6 +28,7 @@ from negpy.kernel.system.version import (
     fetch_latest_release,
     get_app_version,
     is_newer,
+    is_source_install,
 )
 
 logger = get_logger(__name__)
@@ -57,12 +59,12 @@ class UpdateInfo:
 
     @property
     def can_self_install(self) -> bool:
-        return bool(self.download_url) and bool(install_kind())
+        return not is_source_install() and bool(self.download_url) and bool(install_kind())
 
 
 def install_kind() -> str:
     """Which installer produced the running copy, or "" when it cannot self update."""
-    if not getattr(sys, "frozen", False):
+    if is_source_install():
         return ""
     if sys.platform == "win32":
         return NSIS
@@ -160,6 +162,8 @@ def download_asset(
     is_cancelled: Optional[Callable[[], bool]] = None,
 ) -> Path:
     """Stream the asset into `dest_dir` and return the file. Raises UpdateError."""
+    if is_source_install():
+        raise UpdateError(tr("Source installations must be updated manually with Git."))
     if not info.download_url:
         raise UpdateError("This release has no download for your platform.")
 
@@ -310,6 +314,8 @@ def apply_update(downloaded: Path, info: UpdateInfo) -> None:
     Nothing is replaced until this process exits, so a failure here leaves the
     current install untouched.
     """
+    if is_source_install():
+        raise UpdateError(tr("Source installations must be updated manually with Git."))
     kind = install_kind()
     pid = os.getpid()
 

@@ -278,6 +278,16 @@ class PreferencesDialog(QDialog):
         self._add_toggles(grid, row, self.shortcut_hints_box)
         row += 1
 
+        self.automatic_updates_box = labeled_toggle(
+            "fa5s.sync-alt",
+            tr("Check Upstream Releases at Startup"),
+            state.automatic_update_checks,
+            tr("Check GitHub for upstream releases at startup, starting the next time NegPy opens."),
+        )
+        self.automatic_updates_box.toggled.connect(self._on_automatic_updates_changed)
+        self._add_toggles(grid, row, self.automatic_updates_box)
+        row += 1
+
         interface_row, _ = _button_row(
             (
                 (tr("Customize Shortcuts…"), "fa5s.keyboard", tr("Change the keys for each action"), self._open_shortcut_editor),
@@ -482,6 +492,10 @@ class PreferencesDialog(QDialog):
 
     def _on_ui_scale_changed(self, index: int) -> None:
         self.repo.save_global_setting("ui_scale", float(self.scale_combo.itemData(index)))
+        self._mark_restart()
+
+    def _on_automatic_updates_changed(self, checked: bool) -> None:
+        self.session.set_automatic_update_checks(checked)
         self._mark_restart()
 
     def _on_language_changed(self, index: int) -> None:

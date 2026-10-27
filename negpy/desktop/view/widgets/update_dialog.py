@@ -1,8 +1,7 @@
-"""The update window behind the ⋯ menu's "Update to vX.Y.Z…" item.
+"""Upstream release notes and updates for packaged applications.
 
-Shows the release notes, downloads the asset that matches this install, and hands
-it to `updater.apply_update`. NegPy then closes: the swap only happens once this
-process is gone.
+Source copies require manual updates with Git. Packaged copies can download
+and install a matching release after NegPy closes.
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ from negpy.kernel.system.updater import (
     find_update,
     staging_dir,
 )
-from negpy.kernel.system.version import get_app_version
+from negpy.kernel.system.version import get_app_version, is_source_install
 
 logger = get_logger(__name__)
 
@@ -131,14 +130,19 @@ def _mb(value: int) -> str:
 
 
 class UpdateDialog(QDialog):
-    """Release notes, one button, and a progress bar for the swap."""
+    """Upstream release notes and installation controls for packaged copies."""
 
     def __init__(self, info: UpdateInfo, parent: Optional[QWidget] = None, *, repo=None) -> None:
         super().__init__(parent)
         self.info = info
         self._worker: Optional[DownloadWorker] = None
 
-        self.setWindowTitle(tr("NegPy {version} Is Available", version=info.version))
+        source = is_source_install()
+        self.setWindowTitle(
+            tr("Upstream NegPy {version} Is Available", version=info.version)
+            if source
+            else tr("NegPy {version} Is Available", version=info.version)
+        )
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowCloseButtonHint)
         self.setModal(True)
         self.resize(640, 560)
@@ -147,11 +151,13 @@ class UpdateDialog(QDialog):
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(THEME.space_xl)
 
-        heading = QLabel(tr("NegPy {version}", version=info.version))
+        heading = QLabel(tr("Upstream NegPy {version}", version=info.version) if source else tr("NegPy {version}", version=info.version))
         heading.setStyleSheet(f"color: {THEME.text_primary}; font-size: {THEME.font_size_title}px; font-weight: bold;")
         root.addWidget(heading)
 
-        if info.can_self_install:
+        if source:
+            subtitle = tr("This source fork is based on {value}. Merge upstream changes with Git to update it.", value=get_app_version())
+        elif info.can_self_install:
             subtitle = tr(
                 "You are on {value}. NegPy can install this for you ({size} download).", value=get_app_version(), size=_mb(info.size)
             )
@@ -198,11 +204,15 @@ class UpdateDialog(QDialog):
         actions.addWidget(self.page_button)
         actions.addStretch()
 
-        self.later_button = QPushButton(tr("Later"))
+        self.later_button = QPushButton(tr("Close") if source else tr("Later"))
         self.later_button.clicked.connect(self.reject)
         actions.addWidget(self.later_button)
 
-        self.install_button = QPushButton(tr("Install Update") if info.can_self_install else tr("Open Releases Page"))
+        if source:
+            action = tr("Open Upstream Release Notes")
+        else:
+            action = tr("Install Update") if info.can_self_install else tr("Open Releases Page")
+        self.install_button = QPushButton(action)
         self.install_button.clicked.connect(self._on_install)
         actions.addWidget(self.install_button)
         pin_dialog_default(self.install_button, self.later_button, self.page_button)

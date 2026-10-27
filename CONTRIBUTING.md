@@ -100,6 +100,60 @@ backend are fake.
   prescan device (full-window preview, then crop) and a roll device (frames found on the
   strip).
 
+## Updating a personal source fork
+
+Release checks report releases from `marcinz606/NegPy`. They do not check or update your personal fork.
+Automatic checks are off by default. Preferences can enable checks from the next startup.
+Source installations cannot download or install upstream release binaries.
+
+1. Close NegPy. Review your working tree and remotes:
+
+   ```bash
+   git status --short
+   git remote -v
+   ```
+
+2. Commit your local changes on your fork branch before merging. Keep a copy of untracked files you need.
+3. If the `upstream` remote does not exist, add it:
+
+   ```bash
+   git remote add upstream https://github.com/marcinz606/NegPy.git
+   ```
+
+   If it exists, verify that it points to that repository. Keep `origin` pointed at your personal fork.
+
+4. Fetch upstream changes and inspect them:
+
+   ```bash
+   git fetch upstream
+   git remote set-head upstream --auto
+   git log --oneline HEAD..upstream/HEAD
+   git diff HEAD...upstream/HEAD
+   ```
+
+5. Merge the fetched branch into your current fork branch:
+
+   ```bash
+   git merge upstream/HEAD
+   ```
+
+   Resolve conflicts and keep your fork changes, including dependency security fixes.
+   Review each resolution before you stage and commit it.
+   Use `git merge --abort` to cancel an unfinished merge.
+   Do not use a hard reset or force checkout to discard local changes.
+
+6. Review dependency changes, then sync the lock and run the checks:
+
+   ```bash
+   uv sync --locked
+   make all
+   ```
+
+   If you edit dependency declarations during conflict resolution, regenerate `uv.lock` with `uv lock` before syncing.
+   If Make is unavailable, run `uv run ruff check .` and `uv run pytest tests/`.
+
+These commands update the local fork only. They do not push or publish changes.
+
 ## Project Structure
 
 - `negpy/domain/`: core data models, types and interfaces.

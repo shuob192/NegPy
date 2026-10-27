@@ -1,6 +1,6 @@
 import sys
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from PyQt6.QtWidgets import QApplication, QDialog
 
@@ -217,7 +217,8 @@ class TestCanvasToolbarResponsive(unittest.TestCase):
             self.assertFalse(action.icon().isNull())
             self.assertFalse(action.isCheckable())
 
-    def test_a_waiting_update_marks_the_help_submenu(self):
+    @patch("negpy.desktop.view.canvas.toolbar.is_source_install", return_value=False)
+    def test_a_waiting_update_marks_the_help_submenu(self, _source):
         tb = _make_toolbar()
         before = tb._help_menu.menuAction().icon().cacheKey()
 
@@ -225,6 +226,13 @@ class TestCanvasToolbarResponsive(unittest.TestCase):
 
         self.assertNotEqual(tb._help_menu.menuAction().icon().cacheKey(), before)
         self.assertEqual(tb._update_action.text(), "Update to v9.9.9…")
+
+    def test_a_source_checkout_labels_checks_and_notifications_as_upstream(self) -> None:
+        with patch("negpy.desktop.view.canvas.toolbar.is_source_install", return_value=True):
+            tb = _make_toolbar()
+            self.assertEqual(tb._update_action.text(), "Check Upstream Releases…")
+            tb.set_update_available("9.9.9")
+        self.assertEqual(tb._update_action.text(), "Upstream v9.9.9 Release Notes…")
 
     def test_ring_around_is_not_in_the_toolbar(self):
         tb = _make_toolbar()

@@ -212,6 +212,7 @@ class AppState:
     canvas_bg_index: int = 2
     # Render the thumbnails of frames a bulk edit wrote without opening them; off marks them stale
     auto_thumbnail_refresh: bool = False
+    automatic_update_checks: bool = False
     # Preferences > Accessibility, a key into styles.color_vision.PALETTES
     color_vision: str = "standard"
 
@@ -921,6 +922,7 @@ class DesktopSessionManager(QObject):
         if saved_bg is not None:
             self.state.canvas_bg_index = int(saved_bg)
         self.state.auto_thumbnail_refresh = bool(self.repo.get_global_setting("auto_thumbnail_refresh", False))
+        self.state.automatic_update_checks = self.repo.get_global_setting("automatic_update_checks", False) is True
         self.state.color_vision = str(self.repo.get_global_setting("color_vision", "standard") or "standard")
         self.state.zone_hover_highlight = bool(self.repo.get_global_setting("zone_hover_highlight", True))
         self.state.cursor_probe = bool(self.repo.get_global_setting("cursor_probe", False))
@@ -1085,6 +1087,12 @@ class DesktopSessionManager(QObject):
             self.state.sticky_zoom = enabled
             self.repo.save_global_setting("sticky_zoom", enabled)
             self.state_changed.emit()
+
+    def set_automatic_update_checks(self, enabled: bool) -> None:
+        """Persist whether the next startup checks upstream releases."""
+        if self.state.automatic_update_checks != enabled:
+            self.state.automatic_update_checks = enabled
+            self.repo.save_global_setting("automatic_update_checks", enabled)
 
     def set_shortcut_hints(self, enabled: bool) -> None:
         if self.state.shortcut_hints != enabled:
