@@ -21,7 +21,7 @@ dependencies = [
     # which breaks install on an Intel Mac. 1.23.2 is the last version with one.
     "onnxruntime==1.23.2",
     "opencv-python-headless==4.13.0.92",
-    "pillow==12.2.0",
+    "pillow==13.0.0",
     "pyqt6==6.11.0",
     "pyqt6-charts==6.11.0",
     "piexif==1.1.3",
