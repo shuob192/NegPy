@@ -15,14 +15,18 @@ pass for the current one under the same generic filenames.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import tempfile
 import urllib.request
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
 import numpy as np
 from PIL import Image
 
 from negpy.kernel.system.config import APP_CONFIG
+from negpy.kernel.system.i18n import tr
 from negpy.kernel.system.logging import get_logger
 from negpy.kernel.system.version import get_app_version
 
@@ -39,12 +43,28 @@ MODEL_VERSION = "clip-vit-base-patch16-v1"
 MODEL_DOWNLOAD_SIZE = "about 150 MB"
 
 _REPO = "Xenova/clip-vit-base-patch16"
-_BASE_URL = f"https://huggingface.co/{_REPO}/resolve/main"
+MODEL_REVISION = "9a1940eefaddfa46fe89df96accca7d90bf3a57b"
+_BASE_URL = f"https://huggingface.co/{_REPO}/resolve/{MODEL_REVISION}"
 VISION_FILE = "vision_model_quantized.onnx"
 TEXT_FILE = "text_model_quantized.onnx"
 MERGES_FILE = "merges.txt"
-# (published path, local filename)
-_ASSETS = ((f"onnx/{VISION_FILE}", VISION_FILE), (f"onnx/{TEXT_FILE}", TEXT_FILE), (MERGES_FILE, MERGES_FILE))
+
+
+@dataclass(frozen=True)
+class _ModelAsset:
+    path: str
+    name: str
+    sha256: str
+    size: int
+
+
+# Pinned Git LFS OIDs for ONNX; merges.txt is hashed from its verified Git blob.
+# docs/CLIP_MODEL.md records the upstream metadata and the revision update procedure.
+_ASSETS = (
+    _ModelAsset(f"onnx/{VISION_FILE}", VISION_FILE, "44eece4fe5fe4e0359a88268a327adf758633a1aade3917690b952bef1501f96", 87461602),
+    _ModelAsset(f"onnx/{TEXT_FILE}", TEXT_FILE, "9106b51e6c663a56b99182ec617c2b3d53577b037e7e24a7717eb78048a0c97a", 64504507),
+    _ModelAsset(MERGES_FILE, MERGES_FILE, "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a", 524619),
+)
 
 _USER_AGENT = f"NegPy/{get_app_version()} (+https://github.com/marcinz606/NegPy)"
 _CHUNK = 256 * 1024
@@ -74,57 +94,112 @@ def _model_path(filename: str) -> str:
 
 
 def clip_model_ready() -> bool:
-    """Every file the model needs is already on disk."""
-    return all(os.path.isfile(_model_path(name)) for _, name in _ASSETS)
+    """Every cached asset matches the pinned size and SHA-256 without network access."""
+    return all(_file_matches(_model_path(asset.name), asset) for asset in _ASSETS)
+
+
+def _check_cancelled(is_cancelled: Optional[Callable[[], bool]]) -> None:
+    if is_cancelled is not None and is_cancelled():
+        raise ClipDownloadError(tr("Download cancelled."))
+
+
+def _file_matches(path: str, asset: _ModelAsset, is_cancelled: Optional[Callable[[], bool]] = None) -> bool:
+    _check_cancelled(is_cancelled)
+    try:
+        with open(path, "rb") as source:
+            if os.fstat(source.fileno()).st_size != asset.size:
+                return False
+            digest = hashlib.sha256()
+            size = 0
+            while True:
+                _check_cancelled(is_cancelled)
+                chunk = source.read(_CHUNK)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > asset.size:
+                    return False
+                digest.update(chunk)
+    except OSError:
+        return False
+    _check_cancelled(is_cancelled)
+    return size == asset.size and digest.hexdigest() == asset.sha256
+
+
+def _verification_error(name: str) -> ClipDownloadError:
+    return ClipDownloadError(tr("Model verification failed for {name}. Download the model again from Preferences.", name=name))
+
+
+def _verified_asset_bytes(name: str) -> bytes:
+    """Return the verified bytes themselves so loaders cannot reopen a changed cache file."""
+    asset = next(asset for asset in _ASSETS if asset.name == name)
+    try:
+        with open(_model_path(name), "rb") as source:
+            data = source.read(asset.size + 1)
+    except OSError as exc:
+        raise _verification_error(name) from exc
+    if len(data) != asset.size or hashlib.sha256(data).hexdigest() != asset.sha256:
+        raise _verification_error(name)
+    return data
 
 
 def download_clip_model(
     on_progress: Optional[Callable[[int, int], None]] = None,
     is_cancelled: Optional[Callable[[], bool]] = None,
 ) -> None:
-    """Fetches every file clip_model_ready() checks for, atomically per file (a
-    `.part` temp name, renamed only once complete) so a cancelled or interrupted
-    download never leaves a file that reads as ready. Raises ClipDownloadError.
+    """Fetch and verify pinned assets, then replace each cached file atomically.
 
-    `on_progress(done, total)` reports bytes across the whole set, not one file at a
-    time, since the caller (a single progress bar) has no reason to know there are
-    three of them.
+    Completed valid files survive retries. Cancellation removes the active temporary file.
+    Progress reports bytes across the complete asset set.
     """
-    os.makedirs(_model_dir(), exist_ok=True)
-    sizes = {}
-    for path, name in _ASSETS:
-        dest = _model_path(name)
-        sizes[name] = os.path.getsize(dest) if os.path.isfile(dest) else _content_length(f"{_BASE_URL}/{path}")
-    total = sum(sizes.values())
+    _check_cancelled(is_cancelled)
+    try:
+        os.makedirs(_model_dir(), exist_ok=True)
+    except OSError as exc:
+        raise ClipDownloadError(tr("Download failed: {exc}", exc=exc)) from exc
+    total = sum(asset.size for asset in _ASSETS)
     done = 0
-    for path, name in _ASSETS:
-        dest = _model_path(name)
-        if os.path.isfile(dest):
-            done += sizes[name]
+    for asset in _ASSETS:
+        _check_cancelled(is_cancelled)
+        dest = _model_path(asset.name)
+        if _file_matches(dest, asset, is_cancelled):
+            done += asset.size
             if on_progress is not None:
                 on_progress(done, total)
             continue
-        tmp = f"{dest}.part"
+        tmp = None
         try:
-            request = urllib.request.Request(f"{_BASE_URL}/{path}", headers={"User-Agent": _USER_AGENT})
-            with urllib.request.urlopen(request, timeout=30) as response, open(tmp, "wb") as out:
-                while True:
-                    if is_cancelled is not None and is_cancelled():
-                        raise ClipDownloadError("Download cancelled.")
-                    chunk = response.read(_CHUNK)
-                    if not chunk:
-                        break
-                    out.write(chunk)
-                    done += len(chunk)
-                    if on_progress is not None:
-                        on_progress(done, total)
+            with tempfile.NamedTemporaryFile(dir=_model_dir(), prefix=f".{asset.name}.", suffix=".part", delete=False) as out:
+                tmp = out.name
+                _check_cancelled(is_cancelled)
+                request = urllib.request.Request(f"{_BASE_URL}/{asset.path}", headers={"User-Agent": _USER_AGENT})
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    received = 0
+                    while True:
+                        _check_cancelled(is_cancelled)
+                        chunk = response.read(_CHUNK)
+                        _check_cancelled(is_cancelled)
+                        if not chunk:
+                            break
+                        received += len(chunk)
+                        if received > asset.size:
+                            raise _verification_error(asset.name)
+                        out.write(chunk)
+                        done += len(chunk)
+                        if on_progress is not None:
+                            on_progress(done, total)
+            if not _file_matches(tmp, asset, is_cancelled):
+                raise _verification_error(asset.name)
+            _check_cancelled(is_cancelled)
+            os.replace(tmp, dest)
         except ClipDownloadError:
-            _discard(tmp)
             raise
         except Exception as exc:
-            _discard(tmp)
-            raise ClipDownloadError(f"Download failed: {exc}") from exc
-        os.replace(tmp, dest)
+            raise ClipDownloadError(tr("Download failed: {exc}", exc=exc)) from exc
+        finally:
+            if tmp is not None:
+                _discard(tmp)
+    _check_cancelled(is_cancelled)
 
 
 def _discard(path: str) -> None:
@@ -132,16 +207,6 @@ def _discard(path: str) -> None:
         os.remove(path)
     except OSError:
         pass
-
-
-def _content_length(url: str) -> int:
-    """Best-effort size for the progress bar's total; 0 (unknown) is harmless."""
-    try:
-        request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": _USER_AGENT})
-        with urllib.request.urlopen(request, timeout=10) as response:
-            return int(response.headers.get("Content-Length") or 0)
-    except Exception:
-        return 0
 
 
 def _l2_normalize(vec: np.ndarray) -> np.ndarray:
@@ -209,23 +274,25 @@ class ClipModel:
 
     def _ensure_vision(self):
         if self._vision_session is None:
+            model_bytes = _verified_asset_bytes(VISION_FILE)
             import onnxruntime as ort
 
-            self._vision_session = ort.InferenceSession(_model_path(VISION_FILE), providers=["CPUExecutionProvider"])
+            self._vision_session = ort.InferenceSession(model_bytes, providers=["CPUExecutionProvider"])
         return self._vision_session
 
     def _ensure_text(self):
         if self._text_session is None:
+            model_bytes = _verified_asset_bytes(TEXT_FILE)
             import onnxruntime as ort
 
-            self._text_session = ort.InferenceSession(_model_path(TEXT_FILE), providers=["CPUExecutionProvider"])
+            self._text_session = ort.InferenceSession(model_bytes, providers=["CPUExecutionProvider"])
         return self._text_session
 
     def _ensure_tokenizer(self) -> "ClipTokenizer":
         if self._tokenizer is None:
             from negpy.services.assets.clip_tokenizer import ClipTokenizer
 
-            self._tokenizer = ClipTokenizer(_model_path(MERGES_FILE))
+            self._tokenizer = ClipTokenizer.from_bytes(_verified_asset_bytes(MERGES_FILE))
         return self._tokenizer
 
     def embed_image(self, image: Image.Image) -> np.ndarray:

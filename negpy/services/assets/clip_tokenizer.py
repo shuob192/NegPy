@@ -57,7 +57,17 @@ _PAT = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d|[\w]+|[^\s\w]+""", re.IGNORECASE)
 class ClipTokenizer:
     def __init__(self, merges_path: str) -> None:
         with open(merges_path, encoding="utf-8") as fh:
-            lines = fh.read().split("\n")
+            self._initialize(fh.read())
+
+    @classmethod
+    def from_bytes(cls, merges: bytes) -> ClipTokenizer:
+        """Build from verified UTF-8 bytes without reopening the cached file."""
+        tokenizer = cls.__new__(cls)
+        tokenizer._initialize(merges.decode("utf-8"))
+        return tokenizer
+
+    def _initialize(self, content: str) -> None:
+        lines = content.split("\n")
         # First line is a version comment; a trailing blank line is dropped too.
         merges = [tuple(line.split()) for line in lines[1:] if line and len(line.split()) == 2]
 
